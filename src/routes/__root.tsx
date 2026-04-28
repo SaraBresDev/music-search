@@ -1,5 +1,4 @@
 import { createRootRoute, Outlet, Link } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -20,7 +19,6 @@ function RootLayout() {
       <main className="mx-auto max-w-5xl px-4 py-10">
         <Outlet />
       </main>
-      {import.meta.env.DEV && <TanStackRouterDevtools />}
     </div>
   )
 }

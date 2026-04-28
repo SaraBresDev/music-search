@@ -122,7 +122,10 @@ function parseSnapshot(entity: WbEntity | undefined, fallbackId: string): Wikida
   }
 }
 
-async function fetchWikidataEntityBatch(ids: string[]): Promise<Map<string, WikidataEntitySnapshot>> {
+async function fetchWikidataEntityBatch(
+  ids: string[],
+  signal?: AbortSignal
+): Promise<Map<string, WikidataEntitySnapshot>> {
   const snapshots = new Map<string, WikidataEntitySnapshot>()
   if (ids.length === 0) return snapshots
 
@@ -138,7 +141,7 @@ async function fetchWikidataEntityBatch(ids: string[]): Promise<Map<string, Wiki
   const url = `${WIKIDATA_ACTION_API_URL}?${params.toString()}`
   const res = await wikimediaRequest(
     url,
-    { headers: { accept: 'application/json' } },
+    { signal, headers: { accept: 'application/json' } },
     JSON_API_TIMEOUT_MS
   )
   if (!res.ok) return snapshots
@@ -157,7 +160,8 @@ async function fetchWikidataEntityBatch(ids: string[]): Promise<Map<string, Wiki
  * Used when no English Wikipedia summary is available.
  */
 export async function fetchWikidataEnglishDescription(
-  qid: string
+  qid: string,
+  signal?: AbortSignal
 ): Promise<string | undefined> {
   const id = toQid(qid)
   if (!id) return undefined
@@ -178,13 +182,25 @@ export async function fetchWikidataEnglishDescription(
   try {
     const res = await wikimediaRequest(
       url,
-      { headers: { accept: 'application/json' } },
+      { signal, headers: { accept: 'application/json' } },
       JSON_API_TIMEOUT_MS
     )
     if (!res.ok) return undefined
     const json = (await res.json()) as WbGetEntitiesResponse
     const desc = json.entities?.[id]?.descriptions?.en?.value
-    return desc?.trim() || undefined
+    const normalized = desc?.trim() || undefined
+    if (normalized) {
+      setCachedSnapshot(id, {
+        id,
+        label: cached?.label,
+        description: normalized,
+        wikipediaTitle: cached?.wikipediaTitle,
+        imageUrl: cached?.imageUrl,
+        instanceOfIds: cached?.instanceOfIds ?? [],
+        subclassOfIds: cached?.subclassOfIds ?? [],
+      })
+    }
+    return normalized
   } catch {
     return undefined
   }
@@ -196,7 +212,8 @@ export async function fetchWikidataEnglishDescription(
  */
 export async function searchWikidataEntityIds(
   query: string,
-  limit: number
+  limit: number,
+  signal?: AbortSignal
 ): Promise<string[]> {
   const q = query.trim()
   if (!q) return []
@@ -213,7 +230,7 @@ export async function searchWikidataEntityIds(
   try {
     const res = await wikimediaRequest(
       url,
-      { headers: { accept: 'application/json' } },
+      { signal, headers: { accept: 'application/json' } },
       JSON_API_TIMEOUT_MS
     )
     if (!res.ok) return []
@@ -231,7 +248,8 @@ export async function searchWikidataEntityIds(
  * Uses an in-memory cache to avoid repeated roundtrips across searches.
  */
 export async function fetchWikidataEntitySnapshots(
-  ids: string[]
+  ids: string[],
+  signal?: AbortSignal
 ): Promise<Map<string, WikidataEntitySnapshot>> {
   const normalized = [...new Set(ids.map(toQid).filter((id): id is string => Boolean(id)))]
   const result = new Map<string, WikidataEntitySnapshot>()
@@ -252,7 +270,7 @@ export async function fetchWikidataEntitySnapshots(
   for (let i = 0; i < missing.length; i += ENTITY_FETCH_BATCH_SIZE) {
     const batch = missing.slice(i, i + ENTITY_FETCH_BATCH_SIZE)
     try {
-      const batchSnapshots = await fetchWikidataEntityBatch(batch)
+      const batchSnapshots = await fetchWikidataEntityBatch(batch, signal)
       for (const id of batch) {
         const snapshot = batchSnapshots.get(id) ?? null
         setCachedSnapshot(id, snapshot)

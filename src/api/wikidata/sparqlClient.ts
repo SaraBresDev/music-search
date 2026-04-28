@@ -34,7 +34,7 @@ function assertSparqlResults(
   return data as SparqlResultsJson
 }
 
-export async function fetchSparql(query: string): Promise<{
+export async function fetchSparql(query: string, signal?: AbortSignal): Promise<{
   results: { bindings: SparqlBinding[] }
 }> {
   const url = `${WIKIDATA_SPARQL_URL}?format=json&query=${encodeURIComponent(query)}`
@@ -42,6 +42,7 @@ export async function fetchSparql(query: string): Promise<{
     url,
     {
       method: 'GET',
+      signal,
       headers: { accept: 'application/sparql-results+json' },
     },
     SPARQL_TIMEOUT_MS

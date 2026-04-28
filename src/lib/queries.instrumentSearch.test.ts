@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient } from '@tanstack/react-query'
-import { instrumentSearchOptions } from '@/lib/queries'
+import {
+  instrumentDetailOptions,
+  instrumentSearchOptions,
+  notablePlayersOptions,
+} from '@/lib/queries'
 import * as api from '@/api/wikidata'
 
 vi.mock('@/api/wikidata', async () => {
@@ -27,7 +31,7 @@ describe('instrumentSearchOptions', () => {
 
     const data = await client.fetchQuery(instrumentSearchOptions('piano'))
 
-    expect(api.searchInstruments).toHaveBeenCalledWith('piano')
+    expect(api.searchInstruments).toHaveBeenCalledWith('piano', expect.any(AbortSignal))
     expect(data).toHaveLength(1)
     expect(data[0]?.id).toBe('Q5994')
   })
@@ -43,6 +47,11 @@ describe('instrumentSearchOptions', () => {
     expect(options.queryKey).toEqual(['instruments', 'pi ano'])
     await client.fetchQuery(options)
 
-    expect(api.searchInstruments).toHaveBeenCalledWith('pi ano')
+    expect(api.searchInstruments).toHaveBeenCalledWith('pi ano', expect.any(AbortSignal))
+  })
+
+  it('normalizes detail/player query keys for Q-id case', () => {
+    expect(instrumentDetailOptions('q5994').queryKey).toEqual(['instrument', 'Q5994'])
+    expect(notablePlayersOptions('q5994').queryKey).toEqual(['notablePlayers', 'Q5994'])
   })
 })

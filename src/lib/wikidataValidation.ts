@@ -9,6 +9,12 @@ export function isValidWikidataItemId(raw: string): boolean {
   return /^Q[1-9]\d*$/i.test(raw.trim())
 }
 
+/** Canonical Wikidata item id (uppercase) or empty string for invalid input. */
+export function normalizeWikidataItemId(raw: string): string {
+  const id = raw.trim().toUpperCase()
+  return /^Q[1-9]\d*$/.test(id) ? id : ''
+}
+
 function hasAsciiControlChars(s: string): boolean {
   for (const ch of s) {
     const c = ch.codePointAt(0)!

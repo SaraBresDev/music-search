@@ -82,19 +82,28 @@ function isHighConfidenceResult(result: InstrumentSearchResult): boolean {
   return Boolean(result.imageUrl || result.wikipediaTitle)
 }
 
-async function searchInstrumentsByLabelPrefix(q: string): Promise<InstrumentSearchResult[]> {
+async function searchInstrumentsByLabelPrefix(
+  q: string,
+  signal?: AbortSignal
+): Promise<InstrumentSearchResult[]> {
   const prefix = sparqlEscapeDoubleQuoted(q)
-  const data = await fetchSparql(sparqlInstrumentSearchLabelPrefix(prefix))
+  const data = await fetchSparql(sparqlInstrumentSearchLabelPrefix(prefix), signal)
   return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
 }
 
-async function searchInstrumentsByLabelSubstring(q: string): Promise<InstrumentSearchResult[]> {
+async function searchInstrumentsByLabelSubstring(
+  q: string,
+  signal?: AbortSignal
+): Promise<InstrumentSearchResult[]> {
   const needle = sparqlEscapeDoubleQuoted(q)
-  const data = await fetchSparql(sparqlInstrumentSearchLabelSubstring(needle))
+  const data = await fetchSparql(sparqlInstrumentSearchLabelSubstring(needle), signal)
   return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
 }
 
-async function fetchEntityClosure(seedQids: string[]): Promise<Map<string, WikidataEntitySnapshot>> {
+async function fetchEntityClosure(
+  seedQids: string[],
+  signal?: AbortSignal
+): Promise<Map<string, WikidataEntitySnapshot>> {
   const graph = new Map<string, WikidataEntitySnapshot>()
   const visited = new Set<string>()
   let frontier = [...new Set(seedQids)]
@@ -105,7 +114,7 @@ async function fetchEntityClosure(seedQids: string[]): Promise<Map<string, Wikid
     if (visited.size >= CLASSIFICATION_NODE_LIMIT) break
 
     for (const id of batch) visited.add(id)
-    const snapshots = await fetchWikidataEntitySnapshots(batch)
+    const snapshots = await fetchWikidataEntitySnapshots(batch, signal)
 
     const next = new Set<string>()
     for (const [id, entity] of snapshots.entries()) {
@@ -161,12 +170,13 @@ function reachesMusicalInstrumentClass(
 }
 
 async function searchInstrumentsByCandidateIds(
-  query: string
+  query: string,
+  signal?: AbortSignal
 ): Promise<InstrumentSearchResult[]> {
-  const candidateIds = await searchWikidataEntityIds(query, SEARCH_CANDIDATE_LIMIT)
+  const candidateIds = await searchWikidataEntityIds(query, SEARCH_CANDIDATE_LIMIT, signal)
   if (candidateIds.length === 0) return []
 
-  const graph = await fetchEntityClosure(candidateIds)
+  const graph = await fetchEntityClosure(candidateIds, signal)
   const memo = new Map<string, boolean>()
   const normalizedQuery = query.trim().toLowerCase()
   const requirePrefix = normalizedQuery.length <= 2
@@ -197,29 +207,33 @@ async function searchInstrumentsByCandidateIds(
  * - Strict confidence filter for UI-quality results (image/wiki evidence).
  */
 export async function searchInstruments(
-  query: string
+  query: string,
+  signal?: AbortSignal
 ): Promise<InstrumentSearchResult[]> {
   const q = normalizeInstrumentSearchQuery(query)
   if (!q || q.length < MIN_INSTRUMENT_SEARCH_LENGTH) return []
 
-  const primary = await searchInstrumentsByCandidateIds(q)
+  const primary = await searchInstrumentsByCandidateIds(q, signal)
   if (primary.length > 0) return primary
 
   // Fallback for short/ambiguous terms (e.g. "pi") when Action API candidates are too broad.
   if (q.length <= 2) {
-    const prefix = await searchInstrumentsByLabelPrefix(q)
+    const prefix = await searchInstrumentsByLabelPrefix(q, signal)
     return prefix.filter(isHighConfidenceResult)
   }
 
-  const substring = await searchInstrumentsByLabelSubstring(q)
+  const substring = await searchInstrumentsByLabelSubstring(q, signal)
   return substring.filter(isHighConfidenceResult)
 }
 
-export async function getInstrumentDetail(id: string): Promise<InstrumentDetail | null> {
+export async function getInstrumentDetail(
+  id: string,
+  signal?: AbortSignal
+): Promise<InstrumentDetail | null> {
   const qid = id.trim()
   if (!isValidWikidataItemId(qid)) return null
 
-  const data = await fetchSparql(sparqlInstrumentDetail(qid))
+  const data = await fetchSparql(sparqlInstrumentDetail(qid), signal)
   const row = data.results.bindings?.[0]
   if (!row) return null
 
@@ -227,9 +241,9 @@ export async function getInstrumentDetail(id: string): Promise<InstrumentDetail 
   const imageUrl = bindingString(row, 'image')
   const wikipediaTitle = bindingString(row, 'wikipediaTitle')
 
-  let description = (await fetchWikipediaExtract(wikipediaTitle))?.trim()
+  let description = (await fetchWikipediaExtract(wikipediaTitle, signal))?.trim()
   if (!description) {
-    description = (await fetchWikidataEnglishDescription(qid))?.trim()
+    description = (await fetchWikidataEnglishDescription(qid, signal))?.trim()
   }
 
   return {
@@ -242,12 +256,13 @@ export async function getInstrumentDetail(id: string): Promise<InstrumentDetail 
 }
 
 export async function getNotablePlayersForInstrument(
-  instrumentId: string
+  instrumentId: string,
+  signal?: AbortSignal
 ): Promise<NotablePlayer[]> {
   const qid = instrumentId.trim()
   if (!isValidWikidataItemId(qid)) return []
 
-  const data = await fetchSparql(sparqlNotablePlayersForInstrument(qid))
+  const data = await fetchSparql(sparqlNotablePlayersForInstrument(qid), signal)
 
   return (data.results.bindings ?? [])
     .map((b) => ({

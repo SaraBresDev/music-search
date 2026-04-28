@@ -1,13 +1,16 @@
 import { WIKIPEDIA_SUMMARY_BASE } from './constants'
 import { wikimediaRequest, WIKIPEDIA_TIMEOUT_MS } from './wikimediaHttp'
 
-export async function fetchWikipediaExtract(title?: string): Promise<string | undefined> {
+export async function fetchWikipediaExtract(
+  title?: string,
+  signal?: AbortSignal
+): Promise<string | undefined> {
   if (!title) return undefined
   const url = `${WIKIPEDIA_SUMMARY_BASE}/${encodeURIComponent(title)}`
   try {
     const res = await wikimediaRequest(
       url,
-      { headers: { accept: 'application/json' } },
+      { signal, headers: { accept: 'application/json' } },
       WIKIPEDIA_TIMEOUT_MS
     )
     if (!res.ok) return undefined
