@@ -36,4 +36,14 @@ describe('SearchForm', () => {
     render(<SearchForm onSearch={vi.fn()} isLoading />)
     expect(screen.getByRole('button', { name: '…' })).toBeDisabled()
   })
+
+  it('clears active search when input becomes empty', async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn()
+    render(<SearchForm onSearch={onSearch} isLoading={false} initialQuery="piano" />)
+
+    await user.clear(screen.getByRole('searchbox', { name: 'Instrument name' }))
+
+    expect(onSearch).toHaveBeenCalledWith('')
+  })
 })

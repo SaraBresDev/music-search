@@ -175,6 +175,7 @@ SELECT ?person ?personLabel ?image WHERE {
   OPTIONAL { ?person wdt:P18 ?image . }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }
+ORDER BY DESC(BOUND(?image)) ASC(?personLabel) ASC(?person)
 LIMIT ${NOTABLE_PLAYERS_LIMIT}
 `.trim()
 }

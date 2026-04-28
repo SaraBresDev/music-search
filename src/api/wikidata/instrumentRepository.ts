@@ -6,11 +6,10 @@ import {
 } from '@/lib/wikidataValidation'
 import {
   sparqlInstrumentDetail,
-  sparqlInstrumentSearchByCandidateIds,
+  sparqlNotablePlayersForInstrument,
   sparqlInstrumentSearchLabelPrefix,
   sparqlInstrumentSearchLabelSubstring,
   sparqlEscapeDoubleQuoted,
-  sparqlNotablePlayersForInstrument,
 } from './instrumentSparql'
 import {
   bindingString,
@@ -20,9 +19,16 @@ import {
 } from './sparqlClient'
 import { fetchWikipediaExtract } from './wikipediaClient'
 import {
+  fetchWikidataEntitySnapshots,
   fetchWikidataEnglishDescription,
   searchWikidataEntityIds,
+  type WikidataEntitySnapshot,
 } from './wikidataEntityClient'
+
+const WD_MUSICAL_INSTRUMENT_QID = 'Q34379'
+const SEARCH_CANDIDATE_LIMIT = 40
+const CLASSIFICATION_DEPTH_LIMIT = 7
+const CLASSIFICATION_NODE_LIMIT = 450
 
 function dedupeByName<T extends { name: string; imageUrl?: string }>(items: T[]): T[] {
   const byName = new Map<string, T>()
@@ -39,6 +45,15 @@ function dedupeByName<T extends { name: string; imageUrl?: string }>(items: T[])
   return [...byName.values()]
 }
 
+function mapSearchSnapshot(entity: WikidataEntitySnapshot): InstrumentSearchResult {
+  return {
+    id: entity.id,
+    name: entity.label ?? 'Unknown instrument',
+    imageUrl: entity.imageUrl,
+    wikipediaTitle: entity.wikipediaTitle,
+  }
+}
+
 function mapSearchRow(b: SparqlBinding): InstrumentSearchResult {
   return {
     id: qidFromEntityUrl(bindingString(b, 'item') ?? ''),
@@ -48,22 +63,23 @@ function mapSearchRow(b: SparqlBinding): InstrumentSearchResult {
   }
 }
 
-function isHighConfidenceInstrument(result: InstrumentSearchResult): boolean {
-  const normalized = result.name.trim()
+function isHighConfidenceInstrument(entity: WikidataEntitySnapshot): boolean {
+  const normalized = (entity.label ?? '').trim()
+  if (!normalized) return false
   // Drop lexeme-like labels ("Pipa.1") that are usually not user-facing entities.
   if (/\.\d+$/.test(normalized)) return false
   // Drop likely variants/disambiguations that are noisier in strict mode.
   if (normalized.includes(',')) return false
   // Strict precision mode: require visible evidence from Wikimedia.
-  return Boolean(result.imageUrl || result.wikipediaTitle)
+  return Boolean(entity.imageUrl || entity.wikipediaTitle)
 }
 
-async function searchInstrumentsByLabelSubstring(
-  q: string
-): Promise<InstrumentSearchResult[]> {
-  const needle = sparqlEscapeDoubleQuoted(q)
-  const data = await fetchSparql(sparqlInstrumentSearchLabelSubstring(needle))
-  return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
+function isHighConfidenceResult(result: InstrumentSearchResult): boolean {
+  const normalized = result.name.trim()
+  if (!normalized) return false
+  if (/\.\d+$/.test(normalized)) return false
+  if (normalized.includes(',')) return false
+  return Boolean(result.imageUrl || result.wikipediaTitle)
 }
 
 async function searchInstrumentsByLabelPrefix(q: string): Promise<InstrumentSearchResult[]> {
@@ -72,18 +88,113 @@ async function searchInstrumentsByLabelPrefix(q: string): Promise<InstrumentSear
   return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
 }
 
-async function searchInstrumentsByCandidateIds(query: string): Promise<InstrumentSearchResult[]> {
-  const candidateIds = await searchWikidataEntityIds(query, 32)
-  if (candidateIds.length === 0) return []
-  const data = await fetchSparql(sparqlInstrumentSearchByCandidateIds(candidateIds))
+async function searchInstrumentsByLabelSubstring(q: string): Promise<InstrumentSearchResult[]> {
+  const needle = sparqlEscapeDoubleQuoted(q)
+  const data = await fetchSparql(sparqlInstrumentSearchLabelSubstring(needle))
   return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
+}
+
+async function fetchEntityClosure(seedQids: string[]): Promise<Map<string, WikidataEntitySnapshot>> {
+  const graph = new Map<string, WikidataEntitySnapshot>()
+  const visited = new Set<string>()
+  let frontier = [...new Set(seedQids)]
+
+  for (let depth = 0; depth < CLASSIFICATION_DEPTH_LIMIT; depth += 1) {
+    const batch = frontier.filter((id) => !visited.has(id))
+    if (batch.length === 0) break
+    if (visited.size >= CLASSIFICATION_NODE_LIMIT) break
+
+    for (const id of batch) visited.add(id)
+    const snapshots = await fetchWikidataEntitySnapshots(batch)
+
+    const next = new Set<string>()
+    for (const [id, entity] of snapshots.entries()) {
+      graph.set(id, entity)
+      for (const parentId of [...entity.instanceOfIds, ...entity.subclassOfIds]) {
+        if (!visited.has(parentId) && visited.size + next.size < CLASSIFICATION_NODE_LIMIT) {
+          next.add(parentId)
+        }
+      }
+    }
+    frontier = [...next]
+  }
+
+  return graph
+}
+
+function reachesMusicalInstrumentClass(
+  qid: string,
+  graph: Map<string, WikidataEntitySnapshot>,
+  memo: Map<string, boolean>,
+  visiting: Set<string>
+): boolean {
+  if (qid === WD_MUSICAL_INSTRUMENT_QID) return true
+  const known = memo.get(qid)
+  if (known !== undefined) return known
+  if (visiting.has(qid)) return false
+
+  visiting.add(qid)
+  const node = graph.get(qid)
+  if (!node) {
+    visiting.delete(qid)
+    memo.set(qid, false)
+    return false
+  }
+
+  const parents = [...node.instanceOfIds, ...node.subclassOfIds]
+  for (const parent of parents) {
+    if (parent === WD_MUSICAL_INSTRUMENT_QID) {
+      visiting.delete(qid)
+      memo.set(qid, true)
+      return true
+    }
+    if (reachesMusicalInstrumentClass(parent, graph, memo, visiting)) {
+      visiting.delete(qid)
+      memo.set(qid, true)
+      return true
+    }
+  }
+
+  visiting.delete(qid)
+  memo.set(qid, false)
+  return false
+}
+
+async function searchInstrumentsByCandidateIds(
+  query: string
+): Promise<InstrumentSearchResult[]> {
+  const candidateIds = await searchWikidataEntityIds(query, SEARCH_CANDIDATE_LIMIT)
+  if (candidateIds.length === 0) return []
+
+  const graph = await fetchEntityClosure(candidateIds)
+  const memo = new Map<string, boolean>()
+  const normalizedQuery = query.trim().toLowerCase()
+  const requirePrefix = normalizedQuery.length <= 2
+
+  const matches: InstrumentSearchResult[] = []
+  for (const id of candidateIds) {
+    const entity = graph.get(id)
+    if (!entity) continue
+    if (!reachesMusicalInstrumentClass(id, graph, memo, new Set())) continue
+    if (!isHighConfidenceInstrument(entity)) continue
+    if (
+      requirePrefix &&
+      entity.label &&
+      !entity.label.trim().toLowerCase().startsWith(normalizedQuery)
+    ) {
+      continue
+    }
+    matches.push(mapSearchSnapshot(entity))
+  }
+
+  return dedupeByName(matches)
 }
 
 /**
  * Search flow:
- * - **All lengths >= MIN**: Action API candidate search + bounded SPARQL VALUES filter.
- * - **2 characters**: fallback to strict label prefix only (fast + low noise).
- * - **3+ characters**: if empty, fallback to label substring.
+ * - Action API candidate list (`wbsearchentities`) for low-latency retrieval.
+ * - Cached entity closure (`wbgetentities`) for class graph filtering without WDQS search.
+ * - Strict confidence filter for UI-quality results (image/wiki evidence).
  */
 export async function searchInstruments(
   query: string
@@ -92,21 +203,16 @@ export async function searchInstruments(
   if (!q || q.length < MIN_INSTRUMENT_SEARCH_LENGTH) return []
 
   const primary = await searchInstrumentsByCandidateIds(q)
+  if (primary.length > 0) return primary
 
-  if (primary.length > 0) {
-    const strict = primary.filter(isHighConfidenceInstrument)
-    if (strict.length > 0) return strict
-    return []
-  }
-
-  if (q.length === 2) {
+  // Fallback for short/ambiguous terms (e.g. "pi") when Action API candidates are too broad.
+  if (q.length <= 2) {
     const prefix = await searchInstrumentsByLabelPrefix(q)
-    const strict = prefix.filter(isHighConfidenceInstrument)
-    return strict
+    return prefix.filter(isHighConfidenceResult)
   }
 
   const substring = await searchInstrumentsByLabelSubstring(q)
-  return substring.filter(isHighConfidenceInstrument)
+  return substring.filter(isHighConfidenceResult)
 }
 
 export async function getInstrumentDetail(id: string): Promise<InstrumentDetail | null> {

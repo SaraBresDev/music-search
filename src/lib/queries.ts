@@ -4,7 +4,11 @@ import {
   getInstrumentDetail,
   getNotablePlayersForInstrument,
 } from '@/api/wikidata'
-import { canRunInstrumentSearch, isValidWikidataItemId } from '@/lib/wikidataValidation'
+import {
+  canRunInstrumentSearch,
+  isValidWikidataItemId,
+  normalizeInstrumentSearchQuery,
+} from '@/lib/wikidataValidation'
 
 export const queryKeys = {
   instruments: (q: string) => ['instruments', q] as const,
@@ -13,12 +17,15 @@ export const queryKeys = {
 }
 
 export const instrumentSearchOptions = (query: string) =>
-  queryOptions({
-    queryKey: queryKeys.instruments(query),
-    queryFn: () => searchInstruments(query),
-    enabled: canRunInstrumentSearch(query),
-    staleTime: 1000 * 60 * 5,
-  })
+  {
+    const normalized = normalizeInstrumentSearchQuery(query)
+    return queryOptions({
+      queryKey: queryKeys.instruments(normalized),
+      queryFn: () => searchInstruments(normalized),
+      enabled: canRunInstrumentSearch(normalized),
+      staleTime: 1000 * 60 * 5,
+    })
+  }
 
 export const instrumentDetailOptions = (id: string) =>
   queryOptions({

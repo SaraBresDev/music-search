@@ -11,6 +11,16 @@ export function SearchForm({ onSearch, isLoading, initialQuery = '' }: Props) {
   const [value, setValue] = useState(initialQuery)
   const canSearch = value.trim().length >= MIN_INSTRUMENT_SEARCH_LENGTH
 
+  function handleChange(nextValue: string) {
+    const wasNonEmpty = value.trim().length > 0
+    const isNowEmpty = nextValue.trim().length === 0
+    setValue(nextValue)
+    if (wasNonEmpty && isNowEmpty) {
+      // Native search clear ("X") should reset active results immediately.
+      onSearch('')
+    }
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const trimmed = value.trim()
@@ -29,7 +39,7 @@ export function SearchForm({ onSearch, isLoading, initialQuery = '' }: Props) {
         <input
           type="search"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder="Search instruments…"
           aria-label="Instrument name"
           autoComplete="off"

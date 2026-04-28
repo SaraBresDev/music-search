@@ -54,6 +54,12 @@ No environment variables are required.
 | Tailwind CSS v4                  | Styling                              |
 | Wikidata SPARQL + Wikipedia REST | Search, images, description, players |
 
+## Recent improvements
+
+- Deterministic "Top 3 notable players" ordering in SPARQL (`ORDER BY` + `LIMIT 3`).
+- Normalized search query keys in TanStack Query to avoid duplicate cache entries.
+- Entity snapshot in-memory cache now uses `TTL` (20 minutes) and `LRU` eviction (max 400 entries) to reduce repeated API calls in long sessions.
+
 ## How data flows
 
 ```mermaid

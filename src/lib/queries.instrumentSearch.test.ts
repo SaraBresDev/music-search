@@ -31,4 +31,18 @@ describe('instrumentSearchOptions', () => {
     expect(data).toHaveLength(1)
     expect(data[0]?.id).toBe('Q5994')
   })
+
+  it('normalizes query before keying and fetching', async () => {
+    vi.mocked(api.searchInstruments).mockResolvedValue([])
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+
+    const options = instrumentSearchOptions('   pi   ano   ')
+
+    expect(options.queryKey).toEqual(['instruments', 'pi ano'])
+    await client.fetchQuery(options)
+
+    expect(api.searchInstruments).toHaveBeenCalledWith('pi ano')
+  })
 })
