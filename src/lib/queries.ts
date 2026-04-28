@@ -4,10 +4,7 @@ import {
   getInstrumentDetail,
   getNotablePlayersForInstrument,
 } from '@/api/wikidata'
-import {
-  canRunInstrumentSearch,
-  isValidWikidataItemId,
-} from '@/lib/wikidataValidation'
+import { canRunInstrumentSearch, isValidWikidataItemId } from '@/lib/wikidataValidation'
 
 export const queryKeys = {
   instruments: (q: string) => ['instruments', q] as const,

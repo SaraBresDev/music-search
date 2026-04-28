@@ -3,10 +3,7 @@
  * Escape user search text with `sparqlEscapeDoubleQuoted` before embedding.
  * Validate Wikidata Q-ids (`isValidWikidataItemId`) before embedding in detail/player queries.
  */
-import {
-  SPARQL_EXCLUDE_NON_INSTRUMENT_ITEMS,
-  WD_MUSICAL_INSTRUMENT,
-} from './constants'
+import { SPARQL_EXCLUDE_NON_INSTRUMENT_ITEMS, WD_MUSICAL_INSTRUMENT } from './constants'
 
 export function sparqlEscapeDoubleQuoted(value: string): string {
   return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')

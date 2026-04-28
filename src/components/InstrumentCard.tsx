@@ -7,11 +7,14 @@ interface Props {
 }
 
 export function InstrumentCard({ instrument }: Props) {
+  const label = `Open details for ${instrument.name}`
+
   return (
     <Link
       to="/instrument/$id"
       params={{ id: instrument.id }}
-      className="group relative overflow-hidden rounded-2xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-amber-400/10 cursor-pointer block"
+      aria-label={label}
+      className="group relative overflow-hidden rounded-2xl bg-white/5 border border-white/10 hover:border-amber-400/50 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-amber-400/10 cursor-pointer block focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]"
     >
       <div className="aspect-square overflow-hidden bg-black/10">
         <img
@@ -35,4 +38,3 @@ export function InstrumentCard({ instrument }: Props) {
     </Link>
   )
 }
-

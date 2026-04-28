@@ -3,8 +3,7 @@ export const WIKIDATA_SPARQL_URL = 'https://query.wikidata.org/sparql'
 /** Wikidata MediaWiki Action API (wbgetentities, etc.) */
 export const WIKIDATA_ACTION_API_URL = 'https://www.wikidata.org/w/api.php'
 
-export const WIKIPEDIA_SUMMARY_BASE =
-  'https://en.wikipedia.org/api/rest_v1/page/summary'
+export const WIKIPEDIA_SUMMARY_BASE = 'https://en.wikipedia.org/api/rest_v1/page/summary'
 
 /** Wikidata: musical instrument */
 export const WD_MUSICAL_INSTRUMENT = 'wd:Q34379'

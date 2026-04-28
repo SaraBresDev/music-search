@@ -1,8 +1,4 @@
-import type {
-  InstrumentDetail,
-  InstrumentSearchResult,
-  NotablePlayer,
-} from '@/types'
+import type { InstrumentDetail, InstrumentSearchResult, NotablePlayer } from '@/types'
 import {
   isValidWikidataItemId,
   MIN_INSTRUMENT_SEARCH_LENGTH,
@@ -24,9 +20,7 @@ import {
 import { fetchWikipediaExtract } from './wikipediaClient'
 import { fetchWikidataEnglishDescription } from './wikidataEntityClient'
 
-function dedupeByName<T extends { name: string; imageUrl?: string }>(
-  items: T[]
-): T[] {
+function dedupeByName<T extends { name: string; imageUrl?: string }>(items: T[]): T[] {
   const byName = new Map<string, T>()
   for (const item of items) {
     const key = item.name.trim().toLowerCase()
@@ -55,9 +49,7 @@ async function searchInstrumentsByLabelSubstring(
 ): Promise<InstrumentSearchResult[]> {
   const needle = sparqlEscapeDoubleQuoted(q)
   const data = await fetchSparql(sparqlInstrumentSearchLabelSubstring(needle))
-  return dedupeByName(
-    (data.results.bindings ?? []).map(mapSearchRow)
-  )
+  return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
 }
 
 /**
@@ -77,18 +69,14 @@ export async function searchInstruments(
 
   const searchEsc = sparqlEscapeDoubleQuoted(q)
   const data = await fetchSparql(sparqlInstrumentSearchEntitySearch(searchEsc))
-  const primary = dedupeByName(
-    (data.results.bindings ?? []).map(mapSearchRow)
-  )
+  const primary = dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
 
   if (primary.length > 0) return primary
 
   return searchInstrumentsByLabelSubstring(q)
 }
 
-export async function getInstrumentDetail(
-  id: string
-): Promise<InstrumentDetail | null> {
+export async function getInstrumentDetail(id: string): Promise<InstrumentDetail | null> {
   const qid = id.trim()
   if (!isValidWikidataItemId(qid)) return null
 

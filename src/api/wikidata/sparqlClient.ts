@@ -1,5 +1,9 @@
 import { WIKIDATA_SPARQL_URL } from './constants'
-import { WikimediaHttpError, wikimediaRequestOk, SPARQL_TIMEOUT_MS } from './wikimediaHttp'
+import {
+  WikimediaHttpError,
+  wikimediaRequestOk,
+  SPARQL_TIMEOUT_MS,
+} from './wikimediaHttp'
 
 export type SparqlBinding = Record<string, { type: string; value: string }>
 
@@ -7,7 +11,11 @@ type SparqlResultsJson = {
   results?: { bindings?: SparqlBinding[] }
 }
 
-function assertSparqlResults(data: unknown, url: string, httpStatus: number): SparqlResultsJson {
+function assertSparqlResults(
+  data: unknown,
+  url: string,
+  httpStatus: number
+): SparqlResultsJson {
   if (!data || typeof data !== 'object') {
     throw new WikimediaHttpError('SPARQL response is not a JSON object', httpStatus, url)
   }
@@ -17,7 +25,11 @@ function assertSparqlResults(data: unknown, url: string, httpStatus: number): Sp
   }
   const bindings = results.bindings
   if (!Array.isArray(bindings)) {
-    throw new WikimediaHttpError('SPARQL results.bindings is not an array', httpStatus, url)
+    throw new WikimediaHttpError(
+      'SPARQL results.bindings is not an array',
+      httpStatus,
+      url
+    )
   }
   return data as SparqlResultsJson
 }
@@ -51,9 +63,6 @@ export function qidFromEntityUrl(entityUrl: string): string {
   return m?.[1] ?? entityUrl
 }
 
-export function bindingString(
-  b: SparqlBinding,
-  key: string
-): string | undefined {
+export function bindingString(b: SparqlBinding, key: string): string | undefined {
   return b[key]?.value
 }

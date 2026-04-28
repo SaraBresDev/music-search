@@ -18,19 +18,27 @@ export function SearchForm({ onSearch, isLoading }: Props) {
 
   return (
     <div className="w-full max-w-xl mx-auto">
-      <form onSubmit={handleSubmit} className="flex gap-3 w-full">
+      <form
+        onSubmit={handleSubmit}
+        className="flex gap-3 w-full"
+        role="search"
+        aria-label="Instrument search"
+        aria-busy={isLoading}
+      >
         <input
           type="search"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Search instruments…"
-          aria-label="Search instruments"
+          aria-label="Instrument name"
+          autoComplete="off"
           className="flex-1 rounded-xl bg-white/10 border border-white/20 px-5 py-3 text-white placeholder:text-white/40 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
         />
         <button
           type="submit"
           disabled={isLoading || !canSearch}
-          className="rounded-xl bg-amber-400 px-6 py-3 font-bold text-black hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+          aria-disabled={isLoading || !canSearch}
+          className="rounded-xl bg-amber-400 px-6 py-3 font-bold text-black hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]"
         >
           {isLoading ? '…' : 'Search'}
         </button>

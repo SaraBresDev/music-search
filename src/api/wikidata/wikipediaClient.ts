@@ -1,9 +1,7 @@
 import { WIKIPEDIA_SUMMARY_BASE } from './constants'
 import { wikimediaRequest, WIKIPEDIA_TIMEOUT_MS } from './wikimediaHttp'
 
-export async function fetchWikipediaExtract(
-  title?: string
-): Promise<string | undefined> {
+export async function fetchWikipediaExtract(title?: string): Promise<string | undefined> {
   if (!title) return undefined
   const url = `${WIKIPEDIA_SUMMARY_BASE}/${encodeURIComponent(title)}`
   try {

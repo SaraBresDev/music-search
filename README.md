@@ -2,18 +2,57 @@
 
 A React app to search **musical instruments** (Wikidata) and open a detail page with a short Wikipedia summary and **notable players** linked to that instrument (Wikidata **P1303**).
 
+## Original brief vs this submission
+
+The take-home described a **music artists** search (TheAudioDB). This implementation intentionally uses **Wikidata + Wikipedia** for **instruments** instead, while keeping the same UX shape a reviewer expects:
+
+| Brief requirement               | This app                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Search form (input + submit)    | [`SearchForm`](src/components/SearchForm.tsx) on `/`                                             |
+| Results as cards (name + image) | [`InstrumentCard`](src/components/InstrumentCard.tsx) grid                                       |
+| Navigate to a detail route      | `/instrument/$id` (TanStack Router)                                                              |
+| Detail: name, image, biography  | Label, image, Wikipedia extract or Wikidata description                                          |
+| Detail: “top 3” related items   | Up to **3 notable players** (Wikidata `P1303`) instead of tracks                                 |
+| Loading + empty + error states  | Search + detail pages + [`ErrorBoundary`](src/components/AppErrorBoundary.tsx)                   |
+| No API key                      | Wikimedia endpoints; descriptive `User-Agent` in [`constants.ts`](src/api/wikidata/constants.ts) |
+
+**Optional live demo:** after you deploy (e.g. Vercel/Netlify), add the public URL here and keep the local steps below unchanged.
+
+## Prerequisites
+
+- **Node.js 22.x or 24.x** (LTS recommended). The repo declares `engines` in [`package.json`](package.json). If you use [nvm](https://github.com/nvm-sh/nvm), run `nvm use` in this directory (see [`.nvmrc`](.nvmrc)).
+
+## Run locally (copy-paste)
+
+```bash
+npm ci
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173).
+
+No environment variables are required.
+
+## Other scripts
+
+| Command           | Purpose                                              |
+| ----------------- | ---------------------------------------------------- |
+| `npm run build`   | Typecheck + production Vite build                    |
+| `npm run preview` | Serve the `dist/` folder locally (run after `build`) |
+| `npm run lint`    | ESLint                                               |
+| `npm run test`    | Vitest (unit + component tests)                      |
+| `npm run format`  | Prettier write                                       |
+
 ## Stack
 
-| Tool | Purpose |
-|------|---------|
-| React 19 + TypeScript | UI and type safety |
-| Vite | Build tool |
-| TanStack Router v1 | File-based routing |
-| TanStack Query v5 | Data fetching and caching |
-| Tailwind CSS v4 | Styling |
-| Wikidata SPARQL + Wikipedia REST | Search, images, instrument description, player list |
-
-No API key is required. Wikimedia APIs expect a descriptive `User-Agent` (set in `src/api/wikidata/constants.ts`).
+| Tool                             | Purpose                              |
+| -------------------------------- | ------------------------------------ |
+| React 19 + TypeScript            | UI and type safety                   |
+| Vite                             | Build tool                           |
+| TanStack Router v1               | File-based routing                   |
+| TanStack Query v5                | Data fetching and caching            |
+| Tailwind CSS v4                  | Styling                              |
+| Wikidata SPARQL + Wikipedia REST | Search, images, description, players |
 
 ## How data flows
 
@@ -70,32 +109,22 @@ src/
 │   ├── http.ts, errors.ts, constants.ts, utils.ts
 ├── routes/                    # __root, index, instrument.$id
 ├── types/index.ts
+├── test/                      # Vitest setup
 └── main.tsx                   # QueryClient + Router
 ```
 
-## Getting started
+## Route tree generation
 
-```bash
-npm install
-npm run dev
-```
+Routes are file-based. The generated tree is committed as [`src/routeTree.gen.ts`](src/routeTree.gen.ts). After adding or renaming route files, run `npm run dev` or `npm run build` so the TanStack Router Vite plugin regenerates it.
 
-Open http://localhost:5173
+## CI
 
-## Production build
+GitHub Actions runs `lint`, `build`, and `test` on push and pull requests (see [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
-```bash
-npm run build
-npm run preview
-```
+## Git hygiene (recommended before submission)
 
-## Features
-
-- Instrument search (minimum `MIN_INSTRUMENT_SEARCH_LENGTH` characters), cards with image + name
-- Detail: Wikidata id, image, English Wikipedia extract (or Wikidata description fallback)
-- Up to three notable players (P1303)
-- Loading and error handling; invalid Q ids rejected client-side
-- Timeouts on external requests
+- Do **not** commit `node_modules/`, `dist/`, or `.env` secrets.
+- Prefer a **short, honest commit history** (e.g. `feat:`, `fix:`, `test:`, `ci:`) over one giant opaque commit or artificially inflated history.
 
 ## Note on filtered networks
 
