@@ -11,11 +11,15 @@ const InstrumentDetailContent = lazy(() =>
 )
 
 export const Route = createFileRoute('/instrument/$id')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === 'string' ? search.q : '',
+  }),
   component: InstrumentDetailPage,
 })
 
 function InstrumentDetailPage() {
   const { id } = Route.useParams()
+  const { q } = Route.useSearch()
   const instrumentId = String(id)
 
   if (!isValidWikidataItemId(instrumentId)) {
@@ -36,7 +40,7 @@ function InstrumentDetailPage() {
         </div>
       }
     >
-      <InstrumentDetailContent instrumentId={instrumentId} />
+      <InstrumentDetailContent instrumentId={instrumentId} query={q} />
     </Suspense>
   )
 }

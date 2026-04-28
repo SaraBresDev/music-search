@@ -6,7 +6,8 @@ import {
 } from '@/lib/wikidataValidation'
 import {
   sparqlInstrumentDetail,
-  sparqlInstrumentSearchEntitySearch,
+  sparqlInstrumentSearchByCandidateIds,
+  sparqlInstrumentSearchLabelPrefix,
   sparqlInstrumentSearchLabelSubstring,
   sparqlEscapeDoubleQuoted,
   sparqlNotablePlayersForInstrument,
@@ -18,7 +19,10 @@ import {
   type SparqlBinding,
 } from './sparqlClient'
 import { fetchWikipediaExtract } from './wikipediaClient'
-import { fetchWikidataEnglishDescription } from './wikidataEntityClient'
+import {
+  fetchWikidataEnglishDescription,
+  searchWikidataEntityIds,
+} from './wikidataEntityClient'
 
 function dedupeByName<T extends { name: string; imageUrl?: string }>(items: T[]): T[] {
   const byName = new Map<string, T>()
@@ -40,8 +44,18 @@ function mapSearchRow(b: SparqlBinding): InstrumentSearchResult {
     id: qidFromEntityUrl(bindingString(b, 'item') ?? ''),
     name: bindingString(b, 'itemLabel') ?? 'Unknown instrument',
     imageUrl: bindingString(b, 'image'),
-    wikipediaTitle: undefined,
+    wikipediaTitle: bindingString(b, 'wikipediaTitle'),
   }
+}
+
+function isHighConfidenceInstrument(result: InstrumentSearchResult): boolean {
+  const normalized = result.name.trim()
+  // Drop lexeme-like labels ("Pipa.1") that are usually not user-facing entities.
+  if (/\.\d+$/.test(normalized)) return false
+  // Drop likely variants/disambiguations that are noisier in strict mode.
+  if (normalized.includes(',')) return false
+  // Strict precision mode: require visible evidence from Wikimedia.
+  return Boolean(result.imageUrl || result.wikipediaTitle)
 }
 
 async function searchInstrumentsByLabelSubstring(
@@ -52,10 +66,24 @@ async function searchInstrumentsByLabelSubstring(
   return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
 }
 
+async function searchInstrumentsByLabelPrefix(q: string): Promise<InstrumentSearchResult[]> {
+  const prefix = sparqlEscapeDoubleQuoted(q)
+  const data = await fetchSparql(sparqlInstrumentSearchLabelPrefix(prefix))
+  return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
+}
+
+async function searchInstrumentsByCandidateIds(query: string): Promise<InstrumentSearchResult[]> {
+  const candidateIds = await searchWikidataEntityIds(query, 32)
+  if (candidateIds.length === 0) return []
+  const data = await fetchSparql(sparqlInstrumentSearchByCandidateIds(candidateIds))
+  return dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
+}
+
 /**
  * Search flow:
- * - **2 characters**: only label substring on instrument items/classes (EntitySearch ranks by prefix, so "ia" misses "piano").
- * - **3+ characters**: EntitySearch → instrument filter; if empty, same substring fallback as above.
+ * - **All lengths >= MIN**: Action API candidate search + bounded SPARQL VALUES filter.
+ * - **2 characters**: fallback to strict label prefix only (fast + low noise).
+ * - **3+ characters**: if empty, fallback to label substring.
  */
 export async function searchInstruments(
   query: string
@@ -63,17 +91,22 @@ export async function searchInstruments(
   const q = normalizeInstrumentSearchQuery(query)
   if (!q || q.length < MIN_INSTRUMENT_SEARCH_LENGTH) return []
 
-  if (q.length === 2) {
-    return searchInstrumentsByLabelSubstring(q)
+  const primary = await searchInstrumentsByCandidateIds(q)
+
+  if (primary.length > 0) {
+    const strict = primary.filter(isHighConfidenceInstrument)
+    if (strict.length > 0) return strict
+    return []
   }
 
-  const searchEsc = sparqlEscapeDoubleQuoted(q)
-  const data = await fetchSparql(sparqlInstrumentSearchEntitySearch(searchEsc))
-  const primary = dedupeByName((data.results.bindings ?? []).map(mapSearchRow))
+  if (q.length === 2) {
+    const prefix = await searchInstrumentsByLabelPrefix(q)
+    const strict = prefix.filter(isHighConfidenceInstrument)
+    return strict
+  }
 
-  if (primary.length > 0) return primary
-
-  return searchInstrumentsByLabelSubstring(q)
+  const substring = await searchInstrumentsByLabelSubstring(q)
+  return substring.filter(isHighConfidenceInstrument)
 }
 
 export async function getInstrumentDetail(id: string): Promise<InstrumentDetail | null> {

@@ -1,5 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { instrumentSearchOptions } from '@/lib/queries'
 import { SearchForm } from '@/components/SearchForm'
@@ -10,11 +9,23 @@ import { getErrorMessage } from '@/lib/errors'
 import { MIN_INSTRUMENT_SEARCH_LENGTH } from '@/lib/wikidataValidation'
 
 export const Route = createFileRoute('/')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === 'string' ? search.q : '',
+  }),
   component: SearchPage,
 })
 
 function SearchPage() {
-  const [query, setQuery] = useState('')
+  const navigate = useNavigate({ from: '/' })
+  const { q: query } = Route.useSearch()
+
+  const setQuery = (next: string) => {
+    void navigate({
+      to: '/',
+      search: { q: next },
+      replace: false,
+    })
+  }
 
   const {
     data: instruments,
@@ -41,7 +52,12 @@ function SearchPage() {
         <p className="text-white/50 text-sm">Powered by Wikidata + Wikipedia</p>
       </div>
 
-      <SearchForm onSearch={setQuery} isLoading={isFetching} />
+      <SearchForm
+        key={query}
+        onSearch={setQuery}
+        isLoading={isFetching}
+        initialQuery={query}
+      />
 
       {showRefetchHint ? (
         <p className="text-center text-xs text-white/45" role="status" aria-live="polite">
@@ -86,7 +102,7 @@ function SearchPage() {
       {instruments && instruments.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {instruments.map((instrument) => (
-            <InstrumentCard key={instrument.id} instrument={instrument} />
+            <InstrumentCard key={instrument.id} instrument={instrument} query={query} />
           ))}
         </div>
       ) : null}

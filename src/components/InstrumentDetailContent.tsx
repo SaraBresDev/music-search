@@ -9,9 +9,10 @@ import { getErrorMessage } from '@/lib/errors'
 
 interface Props {
   instrumentId: string
+  query?: string
 }
 
-export function InstrumentDetailContent({ instrumentId }: Props) {
+export function InstrumentDetailContent({ instrumentId, query }: Props) {
   const instrumentQ = useQuery(instrumentDetailOptions(instrumentId))
   const playersQ = useQuery(notablePlayersOptions(instrumentId))
 
@@ -42,6 +43,7 @@ export function InstrumentDetailContent({ instrumentId }: Props) {
     <div className="flex flex-col gap-10">
       <Link
         to="/"
+        search={{ q: query ?? '' }}
         className="inline-flex items-center gap-2 text-white/50 hover:text-amber-400 transition-colors text-sm w-fit rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]"
       >
         ← Back to search

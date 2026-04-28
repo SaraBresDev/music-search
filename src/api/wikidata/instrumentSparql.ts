@@ -9,11 +9,14 @@ export function sparqlEscapeDoubleQuoted(value: string): string {
   return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')
 }
 
-/** Must be true for any row we return (instance or class under musical instrument). */
+/**
+ * Must be true for any row we return.
+ * We intentionally limit ontology depth to avoid expensive transitive scans and noisy matches.
+ */
 const SPARQL_IS_MUSICAL_INSTRUMENT = `
   FILTER(
     EXISTS { ?item wdt:P31/wdt:P279* ${WD_MUSICAL_INSTRUMENT} . } ||
-    EXISTS { ?item wdt:P279* ${WD_MUSICAL_INSTRUMENT} . }
+    EXISTS { ?item wdt:P279 ${WD_MUSICAL_INSTRUMENT} . }
   )
 `.trim()
 
@@ -22,11 +25,11 @@ const SPARQL_INSTRUMENT_ITEM_OR_CLASS = `
   {
     ?item wdt:P31/wdt:P279* ${WD_MUSICAL_INSTRUMENT} .
   } UNION {
-    ?item wdt:P279* ${WD_MUSICAL_INSTRUMENT} .
+    ?item wdt:P279 ${WD_MUSICAL_INSTRUMENT} .
   }
 `.trim()
 
-const ENTITY_SEARCH_MWAPI_LIMIT = 40
+const ENTITY_SEARCH_MWAPI_LIMIT = 28
 const SEARCH_RESULTS_LIMIT = 24
 const NOTABLE_PLAYERS_LIMIT = 3
 
@@ -35,7 +38,8 @@ const NOTABLE_PLAYERS_LIMIT = 3
  */
 export function sparqlInstrumentSearchEntitySearch(searchTermEscaped: string): string {
   return `
-SELECT ?item ?itemLabel ?image WHERE {
+PREFIX schema: <http://schema.org/>
+SELECT ?item ?itemLabel ?image ?wikipediaTitle WHERE {
   SERVICE wikibase:mwapi {
     bd:serviceParam wikibase:endpoint "www.wikidata.org" .
     bd:serviceParam wikibase:api "EntitySearch" .
@@ -47,6 +51,11 @@ SELECT ?item ?itemLabel ?image WHERE {
   ${SPARQL_IS_MUSICAL_INSTRUMENT}
   ${SPARQL_EXCLUDE_NON_INSTRUMENT_ITEMS}
   OPTIONAL { ?item wdt:P18 ?image . }
+  OPTIONAL {
+    ?article schema:about ?item ;
+             schema:isPartOf <https://en.wikipedia.org/> ;
+             schema:name ?wikipediaTitle .
+  }
   SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
 }
 LIMIT ${SEARCH_RESULTS_LIMIT}
@@ -58,15 +67,83 @@ LIMIT ${SEARCH_RESULTS_LIMIT}
  */
 export function sparqlInstrumentSearchLabelSubstring(needleEscaped: string): string {
   return `
-SELECT ?item ?itemLabel ?image WHERE {
+PREFIX schema: <http://schema.org/>
+SELECT ?item ?itemLabel ?image ?wikipediaTitle WHERE {
   ${SPARQL_INSTRUMENT_ITEM_OR_CLASS}
   ${SPARQL_EXCLUDE_NON_INSTRUMENT_ITEMS}
   ?item rdfs:label ?itemLabel .
   FILTER(LANG(?itemLabel) = "en") .
   FILTER(CONTAINS(LCASE(STR(?itemLabel)), LCASE("${needleEscaped}"))) .
   OPTIONAL { ?item wdt:P18 ?image . }
+  OPTIONAL {
+    ?article schema:about ?item ;
+             schema:isPartOf <https://en.wikipedia.org/> ;
+             schema:name ?wikipediaTitle .
+  }
 }
 ORDER BY ASC(STRLEN(STR(?itemLabel))) ASC(?itemLabel)
+LIMIT ${SEARCH_RESULTS_LIMIT}
+`.trim()
+}
+
+/**
+ * Fast path for short queries: English label prefix match only.
+ * This is usually much faster and less noisy than full substring scans.
+ */
+export function sparqlInstrumentSearchLabelPrefix(prefixEscaped: string): string {
+  return `
+PREFIX schema: <http://schema.org/>
+SELECT ?item ?itemLabel ?image ?wikipediaTitle WHERE {
+  ${SPARQL_INSTRUMENT_ITEM_OR_CLASS}
+  ${SPARQL_EXCLUDE_NON_INSTRUMENT_ITEMS}
+  ?item rdfs:label ?itemLabel .
+  FILTER(LANG(?itemLabel) = "en") .
+  FILTER(STRSTARTS(LCASE(STR(?itemLabel)), LCASE("${prefixEscaped}"))) .
+  OPTIONAL { ?item wdt:P18 ?image . }
+  OPTIONAL {
+    ?article schema:about ?item ;
+             schema:isPartOf <https://en.wikipedia.org/> ;
+             schema:name ?wikipediaTitle .
+  }
+}
+ORDER BY ASC(STRLEN(STR(?itemLabel))) ASC(?itemLabel)
+LIMIT ${SEARCH_RESULTS_LIMIT}
+`.trim()
+}
+
+/**
+ * Filter/enrich a bounded candidate list (from wbsearchentities) to keep only instruments.
+ * Much cheaper than searching the whole graph for every user query.
+ */
+export function sparqlInstrumentSearchByCandidateIds(candidateQids: string[]): string {
+  const safeQids = candidateQids
+    .map((id) => id.trim().toUpperCase())
+    .filter((id) => /^Q[1-9]\d*$/.test(id))
+
+  if (safeQids.length === 0) {
+    return `
+SELECT ?item ?itemLabel ?image WHERE {
+  FILTER(false)
+}
+LIMIT 0
+`.trim()
+  }
+
+  const values = safeQids.map((id) => `wd:${id}`).join(' ')
+  return `
+PREFIX schema: <http://schema.org/>
+SELECT ?item ?itemLabel ?image ?wikipediaTitle WHERE {
+  VALUES ?item { ${values} }
+  ${SPARQL_IS_MUSICAL_INSTRUMENT}
+  ${SPARQL_EXCLUDE_NON_INSTRUMENT_ITEMS}
+  OPTIONAL { ?item wdt:P18 ?image . }
+  OPTIONAL {
+    ?article schema:about ?item ;
+             schema:isPartOf <https://en.wikipedia.org/> ;
+             schema:name ?wikipediaTitle .
+  }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+}
 LIMIT ${SEARCH_RESULTS_LIMIT}
 `.trim()
 }

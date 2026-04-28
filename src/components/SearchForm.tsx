@@ -4,10 +4,11 @@ import { MIN_INSTRUMENT_SEARCH_LENGTH } from '@/lib/wikidataValidation'
 interface Props {
   onSearch: (query: string) => void
   isLoading: boolean
+  initialQuery?: string
 }
 
-export function SearchForm({ onSearch, isLoading }: Props) {
-  const [value, setValue] = useState('')
+export function SearchForm({ onSearch, isLoading, initialQuery = '' }: Props) {
+  const [value, setValue] = useState(initialQuery)
   const canSearch = value.trim().length >= MIN_INSTRUMENT_SEARCH_LENGTH
 
   function handleSubmit(e: FormEvent) {
